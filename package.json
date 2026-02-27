@@ -1,0 +1,7 @@
+﻿{
+  "name": "cf-boutique",
+  "private": true,
+  "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1"
+  }
+}

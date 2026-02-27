@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  active    Boolean  @default(true)
+  products  Product[]
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id          String           @id @default(uuid())
+  categoryId  String
+  name        String
+  description String?
+  imageUrl    String?
+  active      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+
+  category    Category         @relation(fields: [categoryId], references: [id])
+  variants    ProductVariant[]
+  orderItems  OrderItem[]
+}
+
+model ProductVariant {
+  id          String   @id @default(uuid())
+  productId   String
+  sku         String   @unique
+  color       String
+  size        String
+  priceCents  Int
+
+  weightGrams Int
+  lengthCm    Int
+  widthCm     Int
+  heightCm    Int
+
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  product     Product  @relation(fields: [productId], references: [id])
+  inventory   Inventory?
+  orderItems  OrderItem[]
+}
+
+model Inventory {
+  variantId String @id
+  onHand    Int
+  reserved  Int @default(0)
+
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+enum OrderPaymentStatus {
+  pending
+  paid
+}
+
+enum OrderDeliveryStatus {
+  pending
+  delivered
+}
+
+model Order {
+  id              String              @id @default(uuid())
+  customerName    String
+  customerPhone   String
+  customerAddress String
+  paymentMethod   String
+  notes           String?
+  totalCents      Int
+  paymentStatus   OrderPaymentStatus  @default(pending)
+  deliveryStatus  OrderDeliveryStatus @default(pending)
+  stockDeducted   Boolean             @default(false)
+  paidAt          DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime            @default(now())
+
+  items           OrderItem[]
+}
+
+model OrderItem {
+  id          String         @id @default(uuid())
+  orderId     String
+  productId   String?
+  variantId   String?
+  productName String
+  sku         String?
+  color       String
+  size        String
+  imageUrl    String?
+  quantity    Int
+  priceCents  Int
+  createdAt   DateTime       @default(now())
+
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product?       @relation(fields: [productId], references: [id])
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+}
+
