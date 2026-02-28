@@ -12,6 +12,7 @@ function toBRL(cents: number): string {
 }
 
 export default function CarrinhoPage() {
+  const api = process.env.NEXT_PUBLIC_API_URL;
   const [items, setItems] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -37,6 +38,61 @@ export default function CarrinhoPage() {
     if (!loaded) return;
     writeCartWithOptions(items, { notify: true });
   }, [items, loaded]);
+
+  useEffect(() => {
+    if (!api || !loaded || items.length === 0) return;
+
+    const missingImageItems = items.filter((item) => !item.imageUrl);
+    if (missingImageItems.length === 0) return;
+
+    let cancelled = false;
+
+    async function hydrateMissingImages() {
+      const uniqueProductIds = Array.from(new Set(missingImageItems.map((item) => item.productId)));
+
+      const imageEntries = await Promise.all(
+        uniqueProductIds.map(async (productId) => {
+          try {
+            const res = await fetch(`${api}/catalog/products/${productId}`, { cache: "no-store" });
+            if (!res.ok) return null;
+
+            const product = (await res.json()) as { imageUrl?: string };
+            if (!product.imageUrl) return null;
+            return [productId, product.imageUrl] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      const imageByProductId = new Map(
+        imageEntries.filter((entry): entry is readonly [string, string] => entry !== null),
+      );
+
+      if (imageByProductId.size === 0) return;
+
+      let changed = false;
+      const nextItems = items.map((item) => {
+        if (item.imageUrl) return item;
+        const imageUrl = imageByProductId.get(item.productId);
+        if (!imageUrl) return item;
+        changed = true;
+        return { ...item, imageUrl };
+      });
+
+      if (!changed) return;
+      setItems(nextItems);
+      writeCartWithOptions(nextItems, { notify: true });
+    }
+
+    void hydrateMissingImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, items, loaded]);
 
   const totalCents = useMemo(
     () => items.reduce((acc, item) => acc + item.priceCents * item.quantity, 0),
@@ -86,7 +142,32 @@ export default function CarrinhoPage() {
           <ul className="list-reset cart-list">
             {items.map((item) => (
               <li key={item.variantId} className="card cart-item">
-                <div>
+                <div className="row" style={{ alignItems: "center", gap: 10 }}>
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.productName}
+                      style={{
+                        width: 56,
+                        height: 56,
+                        objectFit: "cover",
+                        borderRadius: 8,
+                        border: "1px solid #d9cab7",
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 8,
+                        border: "1px solid #d9cab7",
+                        background: "#f6efe6",
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
                   <strong>{item.productName}</strong>
                 </div>
                 <div className="meta">

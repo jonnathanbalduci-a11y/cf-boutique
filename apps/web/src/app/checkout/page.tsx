@@ -155,6 +155,61 @@ export default function CheckoutPage() {
     window.localStorage.setItem(CHECKOUT_FORM_STORAGE_KEY, JSON.stringify(form));
   }, [form, loaded]);
 
+  useEffect(() => {
+    if (!api || !loaded || items.length === 0) return;
+
+    const missingImageItems = items.filter((item) => !item.imageUrl);
+    if (missingImageItems.length === 0) return;
+
+    let cancelled = false;
+
+    async function hydrateMissingImages() {
+      const uniqueProductIds = Array.from(new Set(missingImageItems.map((item) => item.productId)));
+
+      const imageEntries = await Promise.all(
+        uniqueProductIds.map(async (productId) => {
+          try {
+            const res = await fetch(`${api}/catalog/products/${productId}`, { cache: "no-store" });
+            if (!res.ok) return null;
+
+            const product = (await res.json()) as { imageUrl?: string };
+            if (!product.imageUrl) return null;
+            return [productId, product.imageUrl] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      const imageByProductId = new Map(
+        imageEntries.filter((entry): entry is readonly [string, string] => entry !== null),
+      );
+
+      if (imageByProductId.size === 0) return;
+
+      let changed = false;
+      const nextItems = items.map((item) => {
+        if (item.imageUrl) return item;
+        const imageUrl = imageByProductId.get(item.productId);
+        if (!imageUrl) return item;
+        changed = true;
+        return { ...item, imageUrl };
+      });
+
+      if (!changed) return;
+      setItems(nextItems);
+      writeCartWithOptions(nextItems, { notify: true });
+    }
+
+    void hydrateMissingImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, items, loaded]);
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -234,11 +289,41 @@ export default function CheckoutPage() {
         <section className="form-grid" style={{ marginTop: 16 }}>
           <div className="card section-card">
             <h2 className="section-title">Resumo do pedido</h2>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
+            <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
               {items.map((item) => (
-                <li key={item.variantId} style={{ marginTop: 8 }}>
-                  {item.productName} | {item.color} - {item.size} | Qtd: {item.quantity} |{" "}
-                  {toBRL(item.priceCents * item.quantity)}
+                <li
+                  key={item.variantId}
+                  style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}
+                >
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.productName}
+                      style={{
+                        width: 52,
+                        height: 52,
+                        objectFit: "cover",
+                        borderRadius: 8,
+                        border: "1px solid #d9cab7",
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: 8,
+                        border: "1px solid #d9cab7",
+                        background: "#f6efe6",
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+                  <span>
+                    {item.productName} | {item.color} - {item.size} | Qtd: {item.quantity} |{" "}
+                    {toBRL(item.priceCents * item.quantity)}
+                  </span>
                 </li>
               ))}
             </ul>
