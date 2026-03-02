@@ -40,7 +40,6 @@ function parsePriceCents(input: unknown): number | null {
   const raw = input.trim();
   if (!raw) return null;
 
-  // "199,90" or "199.90" -> 19990 cents
   if (raw.includes(",") || raw.includes(".")) {
     const normalized = raw.replace(/\./g, "").replace(",", ".");
     const value = Number(normalized);
@@ -48,7 +47,6 @@ function parsePriceCents(input: unknown): number | null {
     return Math.round(value * 100);
   }
 
-  // "19990" -> cents directly
   const digits = Number(raw);
   if (!Number.isFinite(digits) || digits < 0) return null;
   return Math.floor(digits);
@@ -136,9 +134,7 @@ export class AdminController {
 
     if (!name) throw new BadRequestException("Nome do produto obrigatorio.");
     if (!categoryId) throw new BadRequestException("Categoria obrigatoria.");
-    if (priceCents === null || priceCents <= 0) {
-      throw new BadRequestException("Valor invalido.");
-    }
+    if (priceCents === null || priceCents <= 0) throw new BadRequestException("Valor invalido.");
     if (stock === null) throw new BadRequestException("Estoque invalido.");
 
     const sku = (body.sku ?? "").trim() || `CF-${Date.now()}`;
@@ -159,12 +155,7 @@ export class AdminController {
             lengthCm: 30,
             widthCm: 20,
             heightCm: 10,
-            inventory: {
-              create: {
-                onHand: stock,
-                reserved: 0,
-              },
-            },
+            inventory: { create: { onHand: stock, reserved: 0 } },
           },
         },
       },
@@ -242,9 +233,7 @@ export class AdminController {
     if (typeof body.color === "string") data.color = body.color.trim();
     if (typeof body.size === "string") data.size = body.size.trim();
     const parsedPrice = parsePriceCents(body.priceCents);
-    if (parsedPrice !== null) {
-      data.priceCents = parsedPrice;
-    }
+    if (parsedPrice !== null) data.priceCents = parsedPrice;
     if (typeof body.active === "boolean") data.active = body.active;
 
     const parsedStock = parseNonNegativeInt(body.stock);
@@ -285,11 +274,8 @@ export class AdminController {
   @Get("orders")
   async orders(@Req() req: Request) {
     requireAdmin(req);
-
     return prisma.order.findMany({
-      include: {
-        items: true,
-      },
+      include: { items: true },
       orderBy: { createdAt: "desc" },
     });
   }
@@ -309,10 +295,7 @@ export class AdminController {
     if (!body.paid) {
       const updatedOrder = await prisma.order.update({
         where: { id },
-        data: {
-          paymentStatus: "pending",
-          paidAt: null,
-        },
+        data: { paymentStatus: "pending", paidAt: null },
         include: { items: true },
       });
       this.ordersEvents.emit("payment_updated", updatedOrder.id);
@@ -380,29 +363,29 @@ export class AdminController {
     this.ordersEvents.emit("delivery_updated", updatedOrder.id);
     return updatedOrder;
   }
-}
-@Patch("orders/:id/cancel")
-async setOrderCancelledStatus(
-  @Req() req: Request,
-  @Param("id") id: string,
-  @Body() body: { cancelled?: boolean },
-) {
-  requireAdmin(req);
 
-  if (typeof body.cancelled !== "boolean") {
-    throw new BadRequestException("Campo 'cancelled' obrigatorio.");
+  @Patch("orders/:id/cancel")
+  async setOrderCancelledStatus(
+    @Req() req: Request,
+    @Param("id") id: string,
+    @Body() body: { cancelled?: boolean },
+  ) {
+    requireAdmin(req);
+
+    if (typeof body.cancelled !== "boolean") {
+      throw new BadRequestException("Campo 'cancelled' obrigatorio.");
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id },
+      data: {
+        deliveryStatus: body.cancelled ? "cancelled" : "pending",
+        deliveredAt: null,
+      },
+      include: { items: true },
+    });
+
+    this.ordersEvents.emit("delivery_updated", updatedOrder.id);
+    return updatedOrder;
   }
-
-  const updatedOrder = await prisma.order.update({
-    where: { id },
-    data: {
-      deliveryStatus: body.cancelled ? "cancelled" : "pending",
-      deliveredAt: null,
-    },
-    include: { items: true },
-  });
-
-  this.ordersEvents.emit("delivery_updated", updatedOrder.id);
-  return updatedOrder;
 }
-
