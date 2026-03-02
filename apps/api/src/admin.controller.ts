@@ -381,3 +381,28 @@ export class AdminController {
     return updatedOrder;
   }
 }
+@Patch("orders/:id/cancel")
+async setOrderCancelledStatus(
+  @Req() req: Request,
+  @Param("id") id: string,
+  @Body() body: { cancelled?: boolean },
+) {
+  requireAdmin(req);
+
+  if (typeof body.cancelled !== "boolean") {
+    throw new BadRequestException("Campo 'cancelled' obrigatorio.");
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      deliveryStatus: body.cancelled ? "cancelled" : "pending",
+      deliveredAt: null,
+    },
+    include: { items: true },
+  });
+
+  this.ordersEvents.emit("delivery_updated", updatedOrder.id);
+  return updatedOrder;
+}
+
