@@ -274,6 +274,20 @@ export default function AdminPage() {
   }, [imagePreview]);
 
   const categoryOptions = useMemo(() => categories, [categories]);
+    const visibleOrders = useMemo(
+  () => orders.filter((o) => o.deliveryStatus !== "cancelled"),
+  [orders],
+);
+
+const dashboardView = useMemo(() => {
+  const paid = visibleOrders.filter((o) => o.paymentStatus === "paid");
+  return {
+    ordersCount: visibleOrders.length,
+    paidOrdersCount: paid.length,
+    totalSalesCents: visibleOrders.reduce((acc, o) => acc + o.totalCents, 0),
+    paidSalesCents: paid.reduce((acc, o) => acc + o.totalCents, 0),
+  };
+}, [visibleOrders]);
 
   async function saveAdminKey() {
     const key = adminKeyInput.trim();
@@ -497,125 +511,125 @@ export default function AdminPage() {
             <div className="filter-grid" style={{ marginTop: 10 }}>
               <div className="card" style={{ padding: 12 }}>
                 <div className="meta">Pedidos totais</div>
-                <strong>{dashboard.ordersCount}</strong>
+                <strong>{dashboardView.ordersCount}</strong>
               </div>
               <div className="card" style={{ padding: 12 }}>
                 <div className="meta">Pedidos pagos</div>
-                <strong>{dashboard.paidOrdersCount}</strong>
+                <strong>{dashboardView.paidOrdersCount}</strong>
               </div>
               <div className="card" style={{ padding: 12 }}>
                 <div className="meta">Vendas totais</div>
-                <strong>{toBRL(dashboard.totalSalesCents)}</strong>
+                <strong>{toBRL(dashboardView.totalSalesCents)}</strong>
               </div>
               <div className="card" style={{ padding: 12 }}>
                 <div className="meta">Vendas pagas</div>
-                <strong>{toBRL(dashboard.paidSalesCents)}</strong>
+                <strong>{toBRL(dashboardView.paidSalesCents)}</strong>
               </div>
             </div>
           </section>
 
           <section className="card section-card" style={{ marginTop: 16 }}>
-            <h2 className="section-title">Pedidos</h2>
-            {orders.length === 0 ? <p className="meta">Nenhum pedido registrado.</p> : null}
-            <div className="form-grid" style={{ marginTop: 10 }}>
-              {orders.map((order) => (
-                <div key={order.id} className="card" style={{ padding: 12 }}>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <strong>Pedido {order.id}</strong>
-                    <span className="meta">{new Date(order.createdAt).toLocaleString("pt-BR")}</span>
-                  </div>
-                  <div className="meta" style={{ marginTop: 6 }}>
-                    {order.customerName} | {order.customerPhone}
-                  </div>
-                  <div className="meta">{order.customerAddress}</div>
-                  <div style={{ marginTop: 8 }}>
-                    Pagamento: <strong>{order.paymentStatus === "paid" ? "Pago" : "Pendente"}</strong> | Entrega:{" "}
-                    <strong>
-                      {order.deliveryStatus === "delivered"
-                        ? "Entregue"
-                        : order.deliveryStatus === "cancelled"
-                          ? "Cancelado"
-                          : "Pendente"}
-                    </strong>
-                  </div>
-                  <div className="meta">Estoque baixado: {order.stockDeducted ? "Sim" : "Nao"}</div>
-                  <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
-                    {order.items.map((item) => (
-                      <li key={item.id} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-                        {item.imageUrl ? (
-                          <button
-                            type="button"
-                            onClick={() => setImagePreview({ src: item.imageUrl as string, alt: item.productName })}
-                            style={{ padding: 0, border: "none", background: "transparent", cursor: "zoom-in" }}
-                            title="Abrir imagem maior"
-                          >
-                            <img
-                              src={item.imageUrl}
-                              alt={item.productName}
-                              style={{
-                                width: 48,
-                                height: 48,
-                                objectFit: "cover",
-                                borderRadius: 8,
-                                border: "1px solid #d9cab7",
-                                flexShrink: 0,
-                              }}
-                            />
-                          </button>
-                        ) : (
-                          <div
-                            style={{
-                              width: 48,
-                              height: 48,
-                              borderRadius: 8,
-                              border: "1px solid #d9cab7",
-                              background: "#f6efe6",
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <span>
-                          {item.productName} ({item.color}/{item.size}) - Qtd {item.quantity} -{" "}
-                          {toBRL(item.priceCents * item.quantity)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="total" style={{ margin: "10px 0" }}>
-                    Total: {toBRL(order.totalCents)}
-                  </p>
-                  <div className="row">
-  <button
-    type="button"
-    className="btn btn-primary"
-    onClick={() => void setOrderPaid(order.id, order.paymentStatus !== "paid")}
-  >
-    {order.paymentStatus === "paid" ? "Marcar como pendente" : "Marcar como pago"}
-  </button>
+  <h2 className="section-title">Pedidos</h2>
+  {visibleOrders.length === 0 ? <p className="meta">Nenhum pedido registrado.</p> : null}
 
-  <button
-    type="button"
-    className="btn btn-soft"
-    onClick={() => void setOrderDelivered(order.id, order.deliveryStatus !== "delivered")}
-    disabled={order.deliveryStatus === "cancelled"}
-  >
-    {order.deliveryStatus === "delivered" ? "Marcar entrega pendente" : "Marcar como entregue"}
-  </button>
+  <div className="form-grid" style={{ marginTop: 10 }}>
+    {visibleOrders.map((order) => (
+      <div key={order.id} className="card" style={{ padding: 12 }}>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <strong>Pedido {order.id}</strong>
+          <span className="meta">{new Date(order.createdAt).toLocaleString("pt-BR")}</span>
+        </div>
 
-  <button
-  type="button"
-  className="btn btn-soft"
-  onClick={() => void setOrderCancelled(order.id)}
-  disabled={order.deliveryStatus === "cancelled"}
->
-  {order.deliveryStatus === "cancelled" ? "Pedido cancelado" : "Cancelar pedido"}
-</button>
-</div>
+        <div className="meta" style={{ marginTop: 6 }}>
+          {order.customerName} | {order.customerPhone}
+        </div>
+        <div className="meta">{order.customerAddress}</div>
 
-                </div>
-              ))}
-            </div>
-          </section>
+        <div style={{ marginTop: 8 }}>
+          Pagamento: <strong>{order.paymentStatus === "paid" ? "Pago" : "Pendente"}</strong> | Entrega:{" "}
+          <strong>{order.deliveryStatus === "delivered" ? "Entregue" : "Pendente"}</strong>
+        </div>
+
+        <div className="meta">Estoque baixado: {order.stockDeducted ? "Sim" : "Nao"}</div>
+
+        <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
+          {order.items.map((item) => (
+            <li key={item.id} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+              {item.imageUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setImagePreview({ src: item.imageUrl as string, alt: item.productName })}
+                  style={{ padding: 0, border: "none", background: "transparent", cursor: "zoom-in" }}
+                  title="Abrir imagem maior"
+                >
+                  <img
+                    src={item.imageUrl}
+                    alt={item.productName}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      objectFit: "cover",
+                      borderRadius: 8,
+                      border: "1px solid #d9cab7",
+                      flexShrink: 0,
+                    }}
+                  />
+                </button>
+              ) : (
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 8,
+                    border: "1px solid #d9cab7",
+                    background: "#f6efe6",
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+
+              <span>
+                {item.productName} ({item.color}/{item.size}) - Qtd {item.quantity} -{" "}
+                {toBRL(item.priceCents * item.quantity)}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <p className="total" style={{ margin: "10px 0" }}>
+          Total: {toBRL(order.totalCents)}
+        </p>
+
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void setOrderPaid(order.id, order.paymentStatus !== "paid")}
+          >
+            {order.paymentStatus === "paid" ? "Marcar como pendente" : "Marcar como pago"}
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-soft"
+            onClick={() => void setOrderDelivered(order.id, order.deliveryStatus !== "delivered")}
+          >
+            {order.deliveryStatus === "delivered" ? "Marcar entrega pendente" : "Marcar como entregue"}
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-soft"
+            onClick={() => void setOrderCancelled(order.id)}
+          >
+            Cancelar pedido
+          </button>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
+
 
           <section className="card section-card form-grid" style={{ marginTop: 16 }}>
             <h2 className="section-title">Nova bolsa</h2>
