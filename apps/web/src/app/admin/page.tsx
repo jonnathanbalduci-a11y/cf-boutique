@@ -55,7 +55,7 @@ type AdminOrder = {
   notes?: string | null;
   totalCents: number;
   paymentStatus: "pending" | "paid";
-  deliveryStatus: "pending" | "delivered";
+  deliveryStatus: "pending" | "delivered" | "cancelled";
   stockDeducted: boolean;
   createdAt: string;
   items: AdminOrderItem[];
@@ -442,6 +442,22 @@ export default function AdminPage() {
     }
   }
 
+  async function setOrderCancelled(orderId: string) {
+  setError("");
+  setMessage("");
+  try {
+    await adminFetch(`/admin/orders/${orderId}/cancel`, {
+      method: "PATCH",
+      body: JSON.stringify({ cancelled: true }),
+    });
+    setMessage("Pedido cancelado.");
+    await loadData();
+  } catch (e) {
+    setError(e instanceof Error ? e.message : "Falha ao atualizar cancelamento.");
+  }
+}
+
+
   return (
     <main className="page-shell">
       <h1 className="hero-title">Painel Admin</h1>
@@ -513,7 +529,14 @@ export default function AdminPage() {
                   </div>
                   <div className="meta">{order.customerAddress}</div>
                   <div style={{ marginTop: 8 }}>
-                    Pagamento: <strong>{order.paymentStatus === "paid" ? "Pago" : "Pendente"}</strong> | Entrega: <strong>{order.deliveryStatus === "delivered" ? "Entregue" : "Pendente"}</strong>
+                    Pagamento: <strong>{order.paymentStatus === "paid" ? "Pago" : "Pendente"}</strong> | Entrega:{" "}
+                    <strong>
+                      {order.deliveryStatus === "delivered"
+                        ? "Entregue"
+                        : order.deliveryStatus === "cancelled"
+                          ? "Cancelado"
+                          : "Pendente"}
+                    </strong>
                   </div>
                   <div className="meta">Estoque baixado: {order.stockDeducted ? "Sim" : "Nao"}</div>
                   <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
@@ -562,21 +585,33 @@ export default function AdminPage() {
                     Total: {toBRL(order.totalCents)}
                   </p>
                   <div className="row">
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => void setOrderPaid(order.id, order.paymentStatus !== "paid")}
-                    >
-                      {order.paymentStatus === "paid" ? "Marcar como pendente" : "Marcar como pago"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-soft"
-                      onClick={() => void setOrderDelivered(order.id, order.deliveryStatus !== "delivered")}
-                    >
-                      {order.deliveryStatus === "delivered" ? "Marcar entrega pendente" : "Marcar como entregue"}
-                    </button>
-                  </div>
+  <button
+    type="button"
+    className="btn btn-primary"
+    onClick={() => void setOrderPaid(order.id, order.paymentStatus !== "paid")}
+  >
+    {order.paymentStatus === "paid" ? "Marcar como pendente" : "Marcar como pago"}
+  </button>
+
+  <button
+    type="button"
+    className="btn btn-soft"
+    onClick={() => void setOrderDelivered(order.id, order.deliveryStatus !== "delivered")}
+    disabled={order.deliveryStatus === "cancelled"}
+  >
+    {order.deliveryStatus === "delivered" ? "Marcar entrega pendente" : "Marcar como entregue"}
+  </button>
+
+  <button
+  type="button"
+  className="btn btn-soft"
+  onClick={() => void setOrderCancelled(order.id)}
+  disabled={order.deliveryStatus === "cancelled"}
+>
+  {order.deliveryStatus === "cancelled" ? "Pedido cancelado" : "Cancelar pedido"}
+</button>
+</div>
+
                 </div>
               ))}
             </div>
